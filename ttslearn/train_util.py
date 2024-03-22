@@ -248,7 +248,11 @@ def set_epochs_based_on_max_steps_(train_config, steps_per_epoch, logger):
         # Set nepochs based on max_train_steps
         max_train_steps = train_config.max_train_steps
         epochs = int(np.ceil(max_train_steps / steps_per_epoch))
-        train_config.nepochs = epochs
+        # train_config.nepochs = epochs  # default
+        if not train_config.nepochs <= 0:
+            train_config.nepochs = min(epochs, train_config.nepochs)  # NOTE: モデルファイルに指定があるときは、minを取るように変更
+        else:
+            train_config.nepochs = epochs
         logger.info(
             "Number of epochs is set based on max_train_steps: {}".format(epochs)
         )

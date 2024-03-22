@@ -1,0 +1,101 @@
+# @package _global_
+
+defaults:
+  - model: tacotron2_rf2
+
+verbose: 100
+seed: 773
+
+# 1) none 2) tqdm
+tqdm: tqdm
+
+cudnn:
+  benchmark: true
+  deterministic: false
+
+# Multi-gpu
+data_parallel: false
+
+###########################################################
+#                DATA SETTING                             #
+###########################################################
+data:
+  # training set
+  train:
+    utt_list: data/train.list
+    in_dir: dummy # 必要な場合、引数で指定する
+    out_dir: dummy # 必要な場合、引数で指定する
+
+  # development set
+  dev:
+    # jvs set
+    # utt_list: data/eval.list.orig  # 必要があれば、 data/eval.list を用いても良い
+    utt_list: data/eval.list.tmp  # 古いorigの場合、一つ抜けがあったので、それを単体で回したい時用
+    in_dir: dump/jvs001-100_sr24000/norm/eval/in_tacotron/
+    # out_dir: dump/jvs001-100_sr24000/norm/eval/out_tacotron/
+    out_dir: dump/jvs001-100_sr24000/norm/eval/out_tacotron/
+
+    # wagahai set
+    # utt_list: data/wagahai_data/wagahai_all_spk.list
+    # utt_list: data/wagahai_data/wagahai_from_070_spk.list
+    # in_dir: dump/wagahai_all_spk/feats/001-100-model
+    # out_dir: dump/wagahai_all_spk/feats/001-100-model # エラー回避のため
+
+    # inf_dir: outputs/jvs/spk-rec-2-model/melspec
+    # inf_dir: outputs/jvs/exp_002_008_w_audio/melspec
+    # inf_dir: outputs/jvs/normal/melspec
+    # inf_dir: outputs/jvs/exp_002_008_w_audio_rate/melspec
+    # inf_dir: outputs/jvs/exp_002_008_w_audio_rate_vo07/melspec
+    # inf_dir: outputs/jvs/exp_002_008_w_audio_rate_vo95/melspec
+    # inf_dir: outputs/jvs/exp_002_008_w_audio_rate_vo90/melspec
+    # inf_dir: outputs/xvec/${now:%Y-%m-%d_%H:%M:%S}/melspec
+    # inf_dir: outputs/xvec/${now:%Y-%m-%d_%H:%M:%S}_64/melspec
+    inf_dir: outputs/xvec/${now:%Y-%m-%d_%H:%M:%S}_d64_norm/melspec
+    # inf_dir: outputs/xvec/${now:%Y-%m-%d_%H:%M:%S}_d64_baseline/melspec
+    # inf_dir: outputs/xvec/${now:%Y-%m-%d_%H:%M:%S}_d64_baseline_wo_norm/melspec
+
+  # data loader
+  num_workers: 4
+  # batch_size: 128
+  batch_size: 256
+
+###########################################################
+#                TRAIN SETTING                            #
+###########################################################
+train:
+  # out_dir: exp
+  # log_dir: tensorboard/exp
+  out_dir: exp_spkrec
+  log_dir: tensorboard/exp_spkrec
+
+  # steps can either be specified by steps or epochs
+  max_train_steps: 10000
+  # max_train_steps: 100000
+  nepochs: 100
+  # nepochs: -1
+  checkpoint_epoch_interval: 50
+  eval_epoch_interval: 10
+
+  optim:
+    optimizer:
+      name: Adam
+      params:
+        lr: 0.0005
+        betas: [0.9, 0.999]
+        eps: 1e-6
+        weight_decay: 0
+    lr_scheduler:
+      name: StepLR
+      params:
+        step_size: 100000
+        gamma: 0.5
+
+  pretrained:
+    checkpoint: "/home/hosoi/git/ttslearn/extra_recipes/jvs/multispk_tacotron2_pwg/exp/jvs001-100_sr24000/tacotron2_rf2_jvs001_jvs100/best_loss.pth"
+
+model:
+  xvector:
+    # spk_emb_matrix_path: /home/hosoi/git/ssr/outputs/x_vec_mean/x_vector_all_gen_simple.npy
+    # spk_emb_matrix_path: /home/hosoi/git/ssr/outputs/x_vec_mean/stacked_xvector_matrix.npy
+    spk_emb_matrix_path: /home/hosoi/git/ssr/outputs/x_vec_baseline/stacked_xvector_matrix.npy
+    # spk_emb_matrix_path: /home/hosoi/git/ssr/outputs/x_vec_baseline_wo_norm/stacked_xvector_matrix.npy

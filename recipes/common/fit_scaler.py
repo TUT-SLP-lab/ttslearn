@@ -1,4 +1,5 @@
 import argparse
+import subprocess
 import sys
 from pathlib import Path
 
@@ -24,8 +25,8 @@ if __name__ == "__main__":
         scaler = joblib.load(args.external_scaler)
     else:
         scaler = StandardScaler()
+    total = int(subprocess.check_output(["wc", "-l", args.utt_list]).decode().split(' ')[0])
     with open(args.utt_list) as f:
-        for utt_id in tqdm(f):
-            c = np.load(in_dir / f"{utt_id.strip()}-feats.npy")
-            scaler.partial_fit(c)
+        for utt_id in tqdm(f, total=total):
+            scaler.partial_fit(np.load(in_dir / f"{utt_id.strip()}-feats.npy"))
         joblib.dump(scaler, args.out_path)

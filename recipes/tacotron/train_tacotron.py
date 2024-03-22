@@ -226,6 +226,7 @@ def my_app(config: DictConfig) -> None:
     model, optimizer, lr_scheduler, data_loaders, writer, logger = setup(
         config, device, collate_fn
     )
+    # TODO: loggerをwandbの物に差し替える
     train_loop(config, device, model, optimizer, lr_scheduler, data_loaders, writer)
 
 

@@ -1,6 +1,5 @@
 from pathlib import Path
 
-import hydra
 import numpy as np
 import torch
 from hydra.utils import to_absolute_path
@@ -8,12 +7,11 @@ from omegaconf import OmegaConf
 from torch import nn, optim
 from torch.utils import data as data_utils
 from torch.utils.tensorboard import SummaryWriter
+
+import hydra
 from ttslearn.logger import getLogger
-from ttslearn.train_util import (
-    ensure_divisible_by,
-    num_trainable_params,
-    set_epochs_based_on_max_steps_,
-)
+from ttslearn.train_util import (ensure_divisible_by, num_trainable_params,
+                                 set_epochs_based_on_max_steps_)
 from ttslearn.util import init_seed, load_utt_list, pad_1d, pad_2d
 
 
@@ -75,7 +73,7 @@ def collate_fn_ms_tacotron(batch, reduction_factor=1):
     ol_batch = torch.tensor(out_lens, dtype=torch.long)
     stop_flags = torch.zeros(y_batch.shape[0], y_batch.shape[1])
     for idx, out_len in enumerate(out_lens):
-        stop_flags[idx, out_len - 1 :] = 1.0
+        stop_flags[idx, out_len - 1:] = 1.0
 
     return x_batch, il_batch, y_batch, ol_batch, stop_flags, spk_ids
 
@@ -146,7 +144,43 @@ def setup(config, device, collate_fn):
     init_seed(config.seed)
 
     # モデルのインスタンス化
-    model = hydra.utils.instantiate(config.model.netG).to(device)
+    # # 1. 話者識別器
+    spk_pred_model = hydra.utils.instantiate(config.model.spk_rec_model.netG)
+    # NOTE: pytorch lightningで作成したモデルは、ckpt内の`state_dict`にモデルの情報が入っている
+    spk_pred_ckpt = torch.load(config.model.spk_rec_model.model_path)
+    # NOTE: ロードしたsate_dictのキーには、"model."という不要な文字列が含まれているため、切り出す必要がある
+    spk_pred_state_dict = {k[6:]: v for k, v in spk_pred_ckpt["state_dict"].items()}
+    spk_pred_model.load_state_dict(spk_pred_state_dict)
+    for param in spk_pred_model.parameters():
+        param.requires_grad = False  # パラメータのフリーズ
+
+    # 2. ASR
+    # TODO: 音声認識を構築して、メインのモデルに追加でいれる
+
+    # 3. x-vector
+    if config.model.xvector is not None:
+        # load x-vector embedding matrix
+        x_vector_matrix_np = np.load(config.model.xvector.spk_emb_matrix_path)
+        x_vector_matrix = torch.from_numpy(x_vector_matrix_np).to(device)
+
+    # 4. TTS
+    # NOTE: very simple model
+    # model = hydra.utils.instantiate(config.model.netG, spk_recognition_model=None, x_vector_matrix=None).to(device)
+
+    # NOTE: with backword spk recognition
+    # model = hydra.utils.instantiate(
+    #     config.model.netG,
+    #     spk_recognition_model=spk_pred_model,
+    #     x_vector_matrix=None,
+    # ).to(device)
+
+    # NOTE: with x-vector
+    model = hydra.utils.instantiate(
+        config.model.netG,
+        spk_recognition_model=None,
+        x_vector_matrix=x_vector_matrix,
+    ).to(device)
+
     logger.info(model)
     logger.info(
         "Number of trainable params: {:.3f} million".format(
@@ -165,13 +199,19 @@ def setup(config, device, collate_fn):
         state_dict = checkpoint["state_dict"]
         model_dict = model.state_dict()
         state_dict = {k: v for k, v in state_dict.items() if k in model_dict}
-        invalid_keys = []
+        invalid_keys = ["spk_embed.weight"]
         for k, v in state_dict.items():
+            if k in invalid_keys:
+                continue
             if model_dict[k].shape != v.shape:
                 logger.info(f"Skip loading {k}")
                 invalid_keys.append(k)
         for k in invalid_keys:
-            state_dict.pop(k)
+            try:
+                state_dict.pop(k)
+            except KeyError:
+                print(f"Skip pop {k}")
+                continue
         model_dict.update(state_dict)
         model.load_state_dict(model_dict)
 
@@ -208,5 +248,8 @@ def setup(config, device, collate_fn):
         OmegaConf.save(config.model, f)
     with open(out_dir / "config.yaml", "w") as f:
         OmegaConf.save(config, f)
+    # x_vector_matrix_npがある場合は、それも保存しておく
+    if config.model.xvector is not None:
+        np.save(out_dir / "x_vector_matrix.npy", x_vector_matrix_np)
 
     return model, optimizer, lr_scheduler, data_loaders, writer, logger

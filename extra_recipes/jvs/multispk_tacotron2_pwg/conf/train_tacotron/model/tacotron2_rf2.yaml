@@ -23,4 +23,22 @@ netG:
   postnet_dropout: 0.5
   decoder_zoneout: 0.1
   n_spks: 101
-  spk_emb_dim: 64
+  spk_emb_dim: 64 # for speaker embedding # NOTE: デフォルト
+  # spk_emb_dim: ${model.xvector.spk_emb_dim} # NOTE: x-vectorを用いる場合
+  # spk_emb_dim: 512 # NOTE: x-vectorを用いる場合
+
+spk_rec_model:
+  project_dir: "exp/simpleSR/2023-07-10_23:04:46"
+  model_path: "/home/hosoi/git/ssr/${model.spk_rec_model.project_dir}/output/checkpoints/last.ckpt"
+  netG:
+    _target_: ttslearn.contrib.x_vector.X_vector
+    input_dim: ${model.netG.decoder_out_dim}
+    num_classes: 2
+    # num_classes: 100
+
+xvector:
+  spk_emb_dim: 64 # 512
+  # spk_emb_matrix_path: /home/hosoi/git/ssr/outputs/x_vec_mean/stacked_xvector_matrix.npy
+  # spk_emb_matrix_path: /home/hosoi/git/ssr/outputs/x_vec_mean_d64_norm/stacked_xvector_matrix.npy
+  # spk_emb_matrix_path: /home/hosoi/git/ssr/outputs/x_vec_baseline/stacked_xvector_matrix.npy
+  spk_emb_matrix_path: /home/hosoi/git/ssr/outputs/x_vec_baseline_wo_norm/stacked_xvector_matrix.npy

@@ -1,5 +1,6 @@
 import torch
 from torch import nn
+
 from ttslearn.tacotron.decoder import Decoder
 from ttslearn.tacotron.encoder import Encoder
 from ttslearn.tacotron.postnet import Postnet
@@ -63,9 +64,20 @@ class MultiSpkTacotron2(nn.Module):
         reduction_factor=1,
         n_spks=100,
         spk_emb_dim=64,
+        spk_recognition_model=None,
+        asr_model=None,
+        x_vector_matrix=None,
     ):
         super().__init__()
-        self.spk_embed = nn.Embedding(n_spks, spk_emb_dim)
+        if x_vector_matrix is not None:
+            self.spk_embed = nn.Embedding.from_pretrained(x_vector_matrix, freeze=True)
+            # NOTE: x-vectorの次元数をspk_emb_dim以外に設定する場合は次を使う
+            # self.spk_embed = nn.Sequential(
+            #     nn.Embedding.from_pretrained(x_vector_matrix, freeze=True),
+            #     nn.Linear(x_vector_matrix.shape[1], spk_emb_dim),
+            # )
+        else:
+            self.spk_embed = nn.Embedding(n_spks, spk_emb_dim)
 
         self.encoder = Encoder(
             num_vocab,
@@ -97,6 +109,8 @@ class MultiSpkTacotron2(nn.Module):
             postnet_kernel_size,
             postnet_dropout,
         )
+        self.spk_recognition_model = spk_recognition_model
+        self.asr_model = asr_model
 
     def forward(self, seq, in_lens, decoder_targets, spk_ids):
         """Forward step
@@ -132,7 +146,26 @@ class MultiSpkTacotron2(nn.Module):
         outs = outs.transpose(2, 1)
         outs_fine = outs_fine.transpose(2, 1)
 
-        return outs, outs_fine, logits, att_ws
+        spk_pred = None
+        if self.spk_recognition_model is not None:
+            spk_pred, _, _ = self.spk_recognition_model.forward(outs)
+
+        asr_pred = None
+        if self.asr_model is not None:
+            # TODO: ASRモデルの組み込み
+            lengths = []
+            for stop_flags in torch.sigmoid(logits) >= 0.5:  # Decoderと条件を合わせた
+                count = 0
+                for finished in stop_flags:
+                    if not finished:
+                        count += 1
+                    else:
+                        break
+                lengths.append(count-1)
+            asr_pred = self.asr_model.forward(outs, lengths)
+
+        # FIXME: 話者認識、ASRモデルの出力も返す。trainも修正すること
+        return outs, outs_fine, logits, att_ws, spk_pred, asr_pred
 
     def inference(self, seq, spk_id):
         """Inference step
@@ -149,6 +182,6 @@ class MultiSpkTacotron2(nn.Module):
         in_lens = torch.tensor([seq.shape[-1]], dtype=torch.long, device=seq.device)
         spk_id = spk_id.unsqueeze(0) if len(spk_id.shape) == 1 else spk_id
 
-        outs, outs_fine, logits, att_ws = self.forward(seq, in_lens, None, spk_id)
+        outs, outs_fine, logits, att_ws, _, _ = self.forward(seq, in_lens, None, spk_id)
 
         return outs[0], outs_fine[0], logits[0], att_ws[0]

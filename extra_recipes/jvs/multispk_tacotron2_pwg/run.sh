@@ -1,4 +1,5 @@
 #!/bin/bash
+# shellcheck disable=2034,2046,2206,1091,2154,2013,2086,2002,2068,2012,2236
 
 set -e
 set -u
@@ -6,11 +7,12 @@ set -o pipefail
 
 function xrun () {
     set -x
-    $@
+    "$@"
     set +x
 }
 
-script_dir=$(cd $(dirname ${BASH_SOURCE:-$0}); pwd)
+BASH_SRC_DIR=$(dirname "${BASH_SOURCE:-$0}")
+script_dir=$(cd "$BASH_SRC_DIR"; pwd)
 COMMON_ROOT=../../../recipes/common
 . $COMMON_ROOT/yaml_parser.sh || exit 1;
 
@@ -31,11 +33,11 @@ dumpdir=dump
 dump_org_dir=$dumpdir/jvs001-100_sr${sample_rate}/org
 dump_norm_dir=$dumpdir/jvs001-100_sr${sample_rate}/norm
 
-vocoder_model=$(basename $parallel_wavegan_config)
+vocoder_model=$(basename "$parallel_wavegan_config")
 vocoder_model=${vocoder_model%.*}
 
 # exp name
-if [ -z ${tag:=} ]; then
+if [ -z "${tag:=}" ]; then
     expname=jvs001-100_sr${sample_rate}
 else
     expname=jvs001-100_sr${sample_rate}_${tag}
@@ -105,8 +107,8 @@ if [ ${stage} -le 1 ] && [ ${stop_stage} -ge 1 ]; then
         for typ in parallel100 nonpara30; do
             for s in ${datasets[@]}; do
                 xrun python preprocess.py data/$spk/$typ/$s.list $spk_id \
-                $db_root/$spk/$typ/wav24kHz16bit --sample_rate $sample_rate \
-                $db_root/${spk}/$typ/lab/ful/ $dump_org_dir/$s --n_jobs $n_jobs
+                    $db_root/$spk/$typ/wav24kHz16bit --sample_rate $sample_rate \
+                    $db_root/${spk}/$typ/lab/ful/ $dump_org_dir/$s --n_jobs $n_jobs
             done
         done
     done
@@ -160,12 +162,12 @@ if [ ${stage} -le 3 ] && [ ${stop_stage} -ge 3 ]; then
         data.dev.utt_list=data/dev.list \
         data.dev.in_dir=$dump_norm_dir/$dev_set/in_tacotron/ \
         data.dev.out_dir=$dump_norm_dir/$dev_set/out_tacotron/ \
-        train.out_dir=$expdir/${acoustic_model} \
-        train.log_dir=tensorboard/${expname}_${acoustic_model} \
-        train.max_train_steps=$tacotron_train_max_train_steps \
         data.batch_size=$tacotron_data_batch_size \
         cudnn.benchmark=$cudnn_benchmark cudnn.deterministic=$cudnn_deterministic \
         train.pretrained.checkpoint=$pretrained_acoustic_checkpoint
+        # train.max_train_steps=$tacotron_train_max_train_steps \
+        # train.out_dir=$expdir/${acoustic_model} \
+        # train.log_dir=tensorboard/${expname}_${acoustic_model} \
 fi
 
 
@@ -256,9 +258,9 @@ EOL
 
     # speaker info
     for f in spks spk2id; do
-	cp data/$f $dst_dir/
+        cp data/$f $dst_dir/
     done
 
     echo "All the files are ready for TTS!"
     echo "Please check the $dst_dir directory"
- fi
+fi

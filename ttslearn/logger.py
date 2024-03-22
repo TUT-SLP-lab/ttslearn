@@ -2,6 +2,7 @@ import logging
 from logging import Logger
 from pathlib import Path
 from typing import Dict, Optional
+from lightning.pytorch.loggers import WandbLogger
 
 format = "%(asctime)s (%(module)s:%(lineno)d) %(levelname)s: %(message)s"
 
@@ -62,4 +63,37 @@ def getLogger(
         file_handler.setFormatter(logging.Formatter(format))
         logger.addHandler(file_handler)
 
+    return logger
+
+
+def getWandbLogger(
+    verbose: int = 0,
+    project_name: str = "project",
+    name: str = "ttslearn",
+    add_stream_handler: bool = True,
+) -> Logger:
+    """Get a logger instance.
+
+    Args:
+        verbose (int): Verbosity level. Can be a number from -1 (low) to 10 (high).
+        filename (str, optional): Name of the file to log to.
+        name (str, optional): Name of the logger.
+        add_stream_handler (bool, optional): Add a stream handler to the logger.
+
+    Returns:
+        logging.Logger: Logger instance.
+
+    Examples:
+
+        >>> from ttslearn.logger import getLogger
+        >>> logger = getLogger(verbose=10)
+        >>> logger.info("This is a test")
+        2021-07-24 10:20:52,924 (ttslearn:23) INFO: This is a test
+        >>> logger.debug("This is a debug message")
+        2021-07-24 10:20:52,924 (ttslearn:23) DEBUG: This is a debug message
+        >>> logger.warning("This is a warning message")
+        2021-07-24 10:20:52,924 (ttslearn:23) WARNING: This is a warning message
+    """
+    global _initialized
+    logger = WandbLogger(project=project_name)
     return logger
